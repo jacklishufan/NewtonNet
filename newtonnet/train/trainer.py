@@ -696,6 +696,9 @@ class Trainer:
                     np.save(os.path.join(self.val_out_path, 'irc_RM'), outputs['RM'])
                     # np.save(os.path.join(self.val_out_path, 'irc_Ei_epoch%i'%self.epoch), outputs['Ei'])
 
+                print("test_generator: ", test_generator)
+                print("self.mode: ", self.mode)
+
                 # save test predictions
                 if test_generator is not None and self.epoch - last_test_epoch >= self.check_test:
                     if self.mode in ["energy/force", "energy"]:

@@ -938,11 +938,20 @@ def parse_md17_data(settings, data_keys, device):
     energy_type = ani_data.get_energy_type()
     print("Going through this file of Ani CXX Data (Training): ", ani_data)
 
+    min_energy_ani_ccx = 99999
+    max_energy_ani_ccx = -99999
+
     for molecule in ani_data:
         # prepare self energy of the current molecule for subtraction from total energy
         if settings['data']['subtract_self_energy']:
             self_energy = np.sum([atomic_self_energy[a] for a in molecule['atomic_numbers']])
             molecule[energy_type] -= self_energy
+
+            if min(molecule[energy_type]) < min_energy_ani_ccx:
+                min_energy_ani_ccx = min(molecule[energy_type]) 
+            if max(molecule[energy_type]) > max_energy_ani_ccx:
+                max_energy_ani_ccx = max(molecule[energy_type]) 
+
         if settings['data'].get('convert_unit', True):
             # convert Hartree units to kCal/mol
             molecule[energy_type] *= 627.2396
@@ -956,9 +965,15 @@ def parse_md17_data(settings, data_keys, device):
         dtrain['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf_train, 1)))
         dtrain['N'].extend([n_atoms] * n_conf_train)
         dtrain['E'].extend(molecule[energy_type][train_idx])
+    
+    print("min energy anicxx: ", min_energy_ani_ccx * 627.2396)
+    print("max energy anicxx: ", max_energy_ani_ccx * 627.2396)
 
     #Test data
     #Sample 1000 from each molecule
+
+    min_energy_md17 = 99999
+    max_energy_md17 = -99999
 
     md17_data = settings['data']['test_path']
     test_method = settings['data']['test_method']
@@ -971,7 +986,7 @@ def parse_md17_data(settings, data_keys, device):
     molecule_dict_in_use = molecule_dict_all
 
     if test_method == "in":
-        molecule_dict_in_use = molecule_dict_in
+        molecule_dict_in_use = molecule_dict_in 
     elif test_method == "out":
         molecule_dict_in_use = molecule_dict_out
 
@@ -989,6 +1004,13 @@ def parse_md17_data(settings, data_keys, device):
         for item in lst:
             molecule[item] = raw_file[item]
         
+
+        if min(molecule["energies"]) < min_energy_md17:
+            min_energy_md17 = min(molecule["energies"])
+        if max(molecule["energies"]) > max_energy_md17:
+            max_energy_md17 = max(molecule["energies"])
+
+
         #subtract energy (in Kcal)
         if settings['data']['subtract_self_energy']:
             self_energy = np.sum([atomic_self_energy_md17[a] for a in molecule['nuclear_charges']])
@@ -1011,6 +1033,11 @@ def parse_md17_data(settings, data_keys, device):
     # for k in ['R', 'Z', 'N', 'E']:
     #     dtrain[k] = standardize_batch(dtrain[k])
     #     dtest[k] = standardize_batch(dtest[k])
+
+    print("min energy md17: ", min_energy_md17)
+    print("max energy md17: ", max_energy_md17)
+
+    #raise Exception("check point reached")
 
     further_split_indices = list(range(len(dtrain['R'])))
     train_proportion = settings['data']['train_size_proportion']

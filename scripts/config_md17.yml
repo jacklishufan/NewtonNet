@@ -42,7 +42,7 @@ model:
                               # Options are: sum, mean, max
 
 training:
-  epochs: 3                # number of times the entire training data will be shown to the model
+  epochs: 2                # number of times the entire training data will be shown to the model
   tr_batch_size: 4           # number of training points (snapshots) in a batch of data that is feed to the model
   val_batch_size: 4          # number of validation points (snapshots) in a batch of data that is feed to the model
   tr_rotations: 0             # number of times the training data needs to be randomly rotated (redundant for NewtonNet model)
