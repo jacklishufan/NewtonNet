@@ -37,9 +37,9 @@ model:
   normalize_filter: on     #
   return_latent: off         # if True, the latent space will be returned for the future investigation
   double_update_latent: False #
-  nonlinear_attention: linear 
-  attention_heads: 32
-  three_body: off
+  nonlinear_attention: linear # if on, add non linear attention layer, if set to string 'linear', then reduce back to linear attention
+  attention_heads: 32 # number of heads in multihead attantion
+  three_body: off # whether to use 3-Body interaction. This only works when nonlinear_attention is on (and not 'linear').
   layer_norm: true           # normalize hidden layer with a 1D layer_norm function
   aggregration: sum           # aggregration function to use if the prediction may not be represented as the sum of atomic components. 
                               # Options are: sum, mean, max

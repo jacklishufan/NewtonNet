@@ -5,22 +5,14 @@ general:
   output: [local/ccsd/test , 1]                 # path and iterator for the output directory
 
 data:
-  root: /shared/jacklishufan/ani-1-cxx
-  train: 
-          - 1
-          - 2
-          - 3
-          - 4
-          - 5
-          - 6
-          - 7
-          - 8 # path to the training data
-  test:  off   # path to the test data   
+  train_path: /shared/jacklishufan/ani-1-cxx
+  test_path: /shared/jacklishufan/rmd17/npz_data
+  test_method: "all" # other options are 'out' and 'in', corresponding to in-distribution and out-distribution
   test_size_per_molecule: 0.25
   subtract_self_energy: on 
   cutoff: 5.0                 # cutoff radius
-  train_size_proportion: 0.8             # training set size: to sample randomly
-  val_size_proportion: 0.1                # validation set size: to sample randomly
+  train_size_proportion: 0.1             # training set size: to sample randomly
+  val_size_proportion: 0.01                # validation set size: to sample randomly
   test_size: 1000             # test set size: to sample randomly
   random_states: 90           # random seed for data splitting
   train_val_split_random_state: 0
@@ -37,15 +29,17 @@ model:
   w_f_dir: 0.0                # the weight of force direction loss in the loss function
   resolution: 20              # number of basis functions that describe interatomic distances
   n_features: 128             # number of features
-  max_z: 10                   # maximum atomic number in the chemical systems
+  max_z: 26                   # maximum atomic number in the chemical systems
   n_interactions: 3           # number of interaction blocks of newtonnet
   cutoff_network: poly        # the cutoff function: poly (polynomial), cosine
-  normalize_atomic: true     # if True the atomic energy needs to be inverse normalized, otherwise total energy will be scaled back
+  normalize_atomic: on     # if True the atomic energy needs to be inverse normalized, otherwise total energy will be scaled back
   shared_interactions: False  # if True parameters of interaction blocks will be shared.
-  normalize_filter: true     #
-  return_latent: True         # if True, the latent space will be returned for the future investigation
-  double_update_latent: on #
-  nonlinear_attention: off #
+  normalize_filter: on     #
+  return_latent: off         # if True, the latent space will be returned for the future investigation
+  double_update_latent: False #
+  nonlinear_attention: linear # if on, add non linear attention layer, if set to string 'linear', then reduce back to linear attention
+  attention_heads: 32 # number of heads in multihead attantion
+  three_body: off # whether to use 3-Body interaction. This only works when nonlinear_attention is on (and not 'linear').
   layer_norm: true           # normalize hidden layer with a 1D layer_norm function
   aggregration: sum           # aggregration function to use if the prediction may not be represented as the sum of atomic components. 
                               # Options are: sum, mean, max
@@ -62,19 +56,19 @@ training:
   val_keep_original: True     #
   shuffle: True               # shuffle training data before each epoch
   drop_last: True             # if True, drop the left over data points that are less than a full batch size
-  lr: 4.0e-5                  # learning rate
+  lr: 1.0e-4               # learning rate
   lr_scheduler: [plateau, 15, 30, 0.7, 1.0e-6]    # the learning rate decay based on the plateau algorithm: n_epoch_averaging, patience, decay_rate, stop_lr
 #  lr_scheduler: [decay, 0.05]                    # the learning rate decay based on exponential decay: the rate of decay
-  weight_decay: 5.0e-4             # the l2 norm
-  dropout: 0.2                # dropout between 0 and 1
+  weight_decay: 0             # the l2 norm
+  dropout: 0              # dropout between 0 and 1
 
 hooks:
   vismolvector3d: False       # if the latent force vectors need to be visualized (only works when the return_latent is on)
 
 checkpoint:
-  log: 1                      # log the results every this many epochs
+  log: 5                     # log the results every this many epochs
   val: 5                      # evaluate the performance on the validation set every this many epochs
-  test: 10                    # evaluate the performance on the test set every this many epochs
+  test: 9999                     # evaluate the performance on the test set every this many epochs
   model: 100                  # save the model every this many epochs
   verbose: False              # verbosity of the logging
 
