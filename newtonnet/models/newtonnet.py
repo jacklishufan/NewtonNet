@@ -300,6 +300,8 @@ class NonLinearAttention(nn.Module):
         atten = F.softmax(atten,dim=-2) # n a b n_heads
         v = v.view(n,a,b,n_heads,f//n_heads)
         out = torch.einsum('nabh,nabhf->nahf',atten,v).view(*aa.shape)
+        #4th 
+
         return aa + out
 
 class LinearAttention(nn.Module):
@@ -368,6 +370,8 @@ class NonLinearAttentionThreeBody(nn.Module):
         v = torch.einsum('nabhf,nachf->nabchf',v,v).view(nn,aa,bb*cc,hh,-1)
         out = torch.einsum('nabh,nabhf->nahf',atten,v).view(*aa.shape)
         return aa + out 
+
+
 class DynamicsCalculator(nn.Module):
 
     def __init__(
