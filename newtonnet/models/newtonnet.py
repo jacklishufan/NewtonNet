@@ -64,7 +64,8 @@ class NewtonNet(nn.Module):
                  aggregration='sum',
                  attention_heads=1,
                  nonlinear_attention=False,
-                 three_body=False):
+                 three_body=False, 
+                 newtonian_dynamics=True):
 
         super(NewtonNet, self).__init__()
 
@@ -103,7 +104,8 @@ class NewtonNet(nn.Module):
                         double_update_latent=double_update_latent,
                         nonlinear_attention = nonlinear_attention,
                         attention_heads=attention_heads,
-                        three_body=three_body
+                        three_body=three_body,
+                        newtonian_dynamics=newtonian_dynamics
                     )
                 ]
                 * n_interactions
@@ -121,6 +123,7 @@ class NewtonNet(nn.Module):
                         double_update_latent=double_update_latent,
                         nonlinear_attention = nonlinear_attention,
                         attention_heads=attention_heads,
+                        newtonian_dynamics=newtonian_dynamics
                     )
                     for _ in range(n_interactions)
                 ]
@@ -155,6 +158,7 @@ class NewtonNet(nn.Module):
         self.atomic_properties_only = atomic_properties_only
         self.aggregration = aggregration
         self.device = device
+        self.newtonian_dynamics = newtonian_dynamics
 
     def forward(self, data):
         device = self.embedding.weight.device
@@ -170,10 +174,16 @@ class NewtonNet(nn.Module):
 
         # initiate main containers
         a = self.embedding(Z)  # B,A,nf
+        # if self.newtonian_dynamics:
         f_dir = torch.zeros_like(R)  # B,A,3
         f_dynamics = torch.zeros(R.size() + (self.n_features,), device=R.device)  # B,A,3,nf
         r_dynamics = torch.zeros(R.size() + (self.n_features,), device=R.device)  # B,A,3,nf
         e_dynamics = torch.zeros_like(a)  # B,A,nf
+        # else:
+        #     f_dir = None
+        #     f_dynamics = None
+        #     r_dynamics = None
+        #     e_dynamics = None
 
         # require grad
         if self.requires_dr:
@@ -182,20 +192,17 @@ class NewtonNet(nn.Module):
         # store intermediate representations
         if self.return_intermediate:
             hs = [(a,)]
-
         # compute distances (B,A,N) and distance vectors (B,A,N,3)
         if 'D' in data:
             distances = data['D'].to(device)
             distance_vector = data['V'].to(device)
         else:
             distances, distance_vector, N, NM = self.shell(R, N, NM, lattice)
-
         # comput d1 representation (B, A, N, G)
         rbf = self.distance_expansion(distances)
 
         # compute interaction block and update atomic embeddings
         for i_interax in range(self.n_interactions):
-            # print('iter: ', i_interax)
 
             # messages
             a, f_dir, f_dynamics, r_dynamics, e_dynamics = self.dycalc[i_interax](a, rbf, distances, distance_vector, N,
@@ -238,19 +245,17 @@ class NewtonNet(nn.Module):
             E = self.inverse_normalize(E)
 
         if self.requires_dr:
-
+            # E.backward()
             dE = grad(
                 E,
                 R,
                 grad_outputs=torch.ones_like(E),
                 create_graph=self.create_graph,
-                retain_graph=True
-            )[0]
+                retain_graph=True)[0]#allow_unused=True,
             dE = -1.0 * dE
 
         else:
             dE = data['F']
-
         if self.return_intermediate:
             return {'E': E, 'F': dE, 'Ei': Ei, 'hs': hs, 'F_latent': f_dir}
         else:
@@ -351,7 +356,7 @@ class NonLinearAttentionThreeBody(nn.Module):
         aa = a
         q = self.q(a)
         k = self.k(b)
-        v = self.v(torch.cat([b,rbf_msij],dim=-1)) # n x a x nf
+        v = self.v(torch.cat([b,rbf_msij],dim=-1))  # n x a x nf
         atten = torch.einsum('naf,nabf->nabf',q,k)
         n,a,b,f = atten.shape
         n_heads = self.n_heads
@@ -382,6 +387,7 @@ class DynamicsCalculator(nn.Module):
             nonlinear_attention = False,
             attention_heads = 1,
             three_body=False,
+            newtonian_dynamics = True,
     ):
         super(DynamicsCalculator, self).__init__()
 
@@ -431,6 +437,7 @@ class DynamicsCalculator(nn.Module):
                 self.atten = NonLinearAttention(128,n_features,attention_heads)
 
         self.double_update_latent = double_update_latent
+        self.newtonian_dynamics = newtonian_dynamics
 
     def gather_neighbors(self, inputs, N):
         n_features = inputs.size()[-1]
@@ -506,22 +513,22 @@ class DynamicsCalculator(nn.Module):
         # symmetric feature multiplication
         mij = rbf_msij * aj_msij
         msij = mij * ai_msij
-
         # update a with invariance
         if self.nonlinear_attention:
-            a = self.atten(a,aj_msij,NM,rbf_msij)
+            a = self.atten(a,aj_msij,NM,rbf_msij)#+ self.sum_neighbors(msij, NM, dim=2)
+            if self.newtonian_dynamics == False:
+                return  a, f_dir, f_dynamics, r_dynamics, e_dynamics
+
+
         else:
             if self.double_update_latent:
                 a = a + self.sum_neighbors(msij, NM, dim=2)
-
         # Dynamics: Forces
-        # print('msij:', msij.shape, msij[0,0])
         F_ij = self.phi_f(msij) * distance_vector  # B,A,N,3
         F_i_dir = self.sum_neighbors(F_ij, NM, dim=2)  # B,A,3
         f_dir = f_dir + F_i_dir
 
         F_ij = self.phi_f_scale(msij).unsqueeze(-2) * F_ij.unsqueeze(-1)  # B,A,N,3,nf
-        # print('F_ij:', F_ij.shape, F_ij[0,0])
         F_i = self.sum_neighbors(F_ij, NM, dim=2)  # B,A,3,nf
 
         # dr
@@ -529,7 +536,6 @@ class DynamicsCalculator(nn.Module):
 
         dr_j = self.gather_neighbors(r_dynamics, N)  # B,A,N,3,nf
         dr_j = self.phi_r_ext(msij).unsqueeze(-2) * dr_j  # B,A,N,3,nf
-        # print('dr_j:', dr_j.shape, dr_j[0,0])
         dr_ext = self.sum_neighbors(dr_j, NM, dim=2, avg=False)  # B,A,3,nf
 
         # update
@@ -537,7 +543,8 @@ class DynamicsCalculator(nn.Module):
         r_dynamics = r_dynamics + dr_i + dr_ext
 
         # update energy
-        de_i = -1.0 * torch.sum(f_dynamics * r_dynamics, dim=-2)  # B,A,nf
+        # de_i = -1.0 * torch.sum(f_dynamics * r_dynamics, dim=-2)  # B,A,nf
+        de_i = -1.0 * torch.sum(f_dynamics, dim=-2)  # B,A,nf
         de_i = self.phi_e(a) * de_i
         a = a + de_i
         e_dynamics = e_dynamics + de_i
