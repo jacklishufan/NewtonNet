@@ -114,6 +114,7 @@ def standardize_batch(batch_content, return_mask=False):
     return_mask: bool
         whether or not return the mask for valid data/padding
     '''
+    # print(batch_content[0])
     if type(batch_content[0]) is np.ndarray:
         all_len = [len(item) for item in batch_content]
         maximal_len = np.max(all_len)

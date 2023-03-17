@@ -153,7 +153,7 @@ class DataLoaderAniccx(object):
         with h5py.File(h5filename, 'r') as f:
             for grp in f.values():
                 Nc = grp['coordinates'].shape[0]
-                mask = np.ones(Nc, dtype=np.bool)
+                mask = np.ones(Nc, dtype=np.bool_)
                 data = dict((k, grp[k][()]) for k in keys)
                 for k in keys:
                     v = data[k].reshape(Nc, -1)
@@ -178,6 +178,9 @@ class DataLoaderAniccx(object):
     def get_energy_type(self):
         return self.keys[0]
 
+    ''' Returns the avaliable energy type '''
+    def get_force_type(self):
+        return self.keys[1]
     ''' Returns the number of groups '''
     def group_size(self):
         return len(self.get_group_list())

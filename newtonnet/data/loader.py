@@ -16,55 +16,77 @@ class BatchDataset(Dataset):
     """
     def __init__(self, input, device):
 
-        self.R = torch.tensor(input['R'],
-                                  device=device,
-                                  # dtype=torch.float64
-                              )
+        self.R = None
+        if 'R' in input and input['R'] is not None:
+            self.R = input['R']
 
-        self.Z = torch.tensor(input['Z'],
-                                           dtype=torch.long,
-                                           device=device)
-        self.E = torch.tensor(input['E'],
-                                   # dtype=torch.float64,
-                                   device=device)
-        self.F = torch.tensor(input['F'],
-                                   # dtype=torch.float64,
-                                   device=device)
-        self.AM = torch.tensor(input['AM'],
-                                dtype=torch.long,
-                                device=device)
+        self.Z = None
+        if 'Z' in input and input['Z'] is not None:
+            self.Z = input['Z']                               
+
+        self.E = None
+        if 'E' in input and input['E'] is not None:
+            self.E = input['E']                               
+
+        self.F = input['F']                               
+
+        if 'F' in input and input['F'] is not None:
+            # self.F = input['F']     
+            m =7                          
+
+        self.AM = None
+        if 'AM' in input and input['AM'] is not None:
+            self.AM = input['AM']                               
+
+        self.N = None
+        self.NM = None
         if 'NM' in input and input['NM'] is not None:
-            self.N = torch.tensor(input['N'],
-                                   dtype=torch.long,
-                                   device=device)
-            self.NM = torch.tensor(input['NM'],
-                                   dtype=torch.long,
-                                   device=device)
-
+            self.N = input['N']  
+            self.NM = input['NM']
         # rotation matrix
         self.RM = None
         if 'RM' in input and input['RM'] is not None:
-            self.RM = torch.tensor(input['RM'],
-                                   # dtype=torch.float64,
-                                   device=device)
+            self.RM = input['RM']
+        
+        self.device = device
 
     def __getitem__(self, index):
 
+        device = self.device
         output = dict()
+        # output['R'] = torch.tensor(self.R[index], dtype=torch.float64,device=device)
+        # output['Z'] = torch.tensor(self.Z[index], dtype=torch.float64,device=device)
+        # output['E'] = torch.tensor(self.E[index], dtype=torch.float64,device=device)
+        # if self.F != None:
+        #     output['F'] = torch.tensor(self.F[index], dtype=torch.float64,device=device)
+        # if self.AM != None:
+        #     output['AM'] = torch.tensor(self.AM[index], dtype=torch.float64,device=device)
+        # if self.N != None:
+        #     output['N'] = torch.tensor(self.N[index], dtype=torch.float64,device=device)
+        # if self.NM != None:
+        #     output['NM'] = torch.tensor(self.NM[index], dtype=torch.float64,device=device)
+        # if self.RM is not None:
+        #     output['RM'] = torch.tensor(self.RM[index], dtype=torch.float64,device=device)
+
         output['R'] = self.R[index]
         output['Z'] = self.Z[index]
         output['E'] = self.E[index]
-        output['F'] = self.F[index]
-        output['AM'] = self.AM[index]
-        output['N'] = self.N[index]
-        output['NM'] = self.NM[index]
+        if self.F != None:
+            output['F'] = self.F[index]
+        if self.AM != None:
+            output['AM'] = self.AM[index]
+        if self.N != None:
+            output['N'] = self.N[index]
+        if self.NM != None:
+            output['NM'] = self.NM[index]
         if self.RM is not None:
             output['RM'] = self.RM[index]
+
 
         return output
 
     def __len__(self):
-        return self.R.size()[0]
+        return self.R.shape[0]
 
 
 def batch_dataset_converter(input, device):
@@ -139,7 +161,112 @@ def batch_dataset_converter(input, device):
         result["labels"] = input["labels"]
     return result
 
+def collate_wrapper(env_provider=None,
+                    n_rotations=0,
+                    freeze_rotations=False,
+                    keep_original=True,
+                    device=None,
+                    shuffle=True,
+                    drop_last=False):
 
+    if isinstance(freeze_rotations, list):
+        thetas = freeze_rotations
+        freeze_rotations = True
+    else:
+        if freeze_rotations:
+            import itertools
+            theta_gen = itertools.permutations(np.linspace(-np.pi, np.pi, 6), 3) #todo: linspace size
+            thetas = [np.array([0.0, 0.0, 0.0])
+                      ]  # index 0 is reserved for the original data (no rotation)
+            thetas += [
+                np.random.uniform(-np.pi, np.pi, size=3)
+                for _ in range(n_rotations)
+            ]
+
+    def collate_function(batch):
+        batch_size = len(batch)
+        # for r in range(n_rotations + 1):
+            # split by batch size and yield
+        r = 0
+        data = {k:[] for k in batch[0].keys()}
+        
+        for molecule in batch:
+            for key, val in molecule.items():
+                data[key].append(val)
+        
+        data_batch = {k: standardize_batch(data[k]) for k in data if k != "labels"}
+        if "labels" in data:
+            data_batch["labels"] = [data["labels"][idx] for idx in range(batch_size)]
+        # get neighbors
+        if env_provider is not None:
+            if 'lattice' in data_batch:
+                neighbors, neighbor_mask, atom_mask, distances, distance_vectors = \
+                env_provider.get_environment(data_batch['R'], data_batch['Z'], data_batch['lattice'])
+            else:
+                neighbors, neighbor_mask, atom_mask, distances, distance_vectors = \
+                env_provider.get_environment(data_batch['R'], data_batch['Z'])
+
+        # rotation
+        if r > 0:
+            if freeze_rotations:
+                try:
+                    theta = np.array(next(theta_gen))
+                except:
+                    theta_gen = itertools.permutations(
+                    np.linspace(-np.pi, np.pi, 6), 3)
+                    theta = np.array(next(theta_gen))
+            else:
+                theta = np.random.uniform(-np.pi, np.pi, size=3)
+            rot_atoms = rotate_molecule(data_batch['R'], theta=theta)  # B, A, 3
+            if distance_vectors is not None:
+                rot_dist_vec = rotate_molecule(distance_vectors, theta=theta)
+            if 'F' in data:
+                rot_forces = rotate_molecule(data_batch['F'], theta=theta)  # B, A, 3
+        else:
+            if not keep_original:
+                theta = np.random.uniform(-np.pi, np.pi, size=3)
+                rot_atoms = rotate_molecule(data_batch['R'], theta=theta)  # B, A, 3
+                if distance_vectors is not None:
+                    rot_dist_vec = rotate_molecule(distance_vectors, theta=theta)
+                if 'F' in data:
+                    rot_forces = rotate_molecule(data_batch['F'], theta=theta)  # B, A, 3
+            else:
+                theta = np.array([0,0,0])
+                rot_atoms = data_batch['R']
+                if 'F' in data:
+                    rot_forces = data_batch['F']
+                if distance_vectors is not None:
+                    rot_dist_vec = distance_vectors
+
+        RM = np.tile(theta, (rot_atoms.shape[0],1))
+
+        if env_provider is None:
+            N = None
+            NM = None
+            Z = data_batch['Z']
+            AM = np.zeros_like(Z)
+            AM[Z != 0] = 1
+        else:
+            N = neighbors
+            NM = neighbor_mask
+            AM = atom_mask
+
+        batch_dataset = {k:v for k,v in data_batch.items()}
+        batch_dataset.update({'R': rot_atoms,  # B,A,3
+                                'N': N,     # B,A,A-1
+                                'NM': NM,   # B,A,A-1
+                                'AM': AM,   # B,A
+                                'RM': RM    # B,3  rotation angles only
+                                })
+        if 'F' in data:
+            batch_dataset.update({'F': rot_forces})
+
+        if distances is not None and distance_vectors is not None:
+            batch_dataset.update({'D': distances,
+                                    'V': rot_dist_vec})
+        batch_dataset = batch_dataset_converter(batch_dataset, device)
+        return batch_dataset
+    return collate_function
 def extensive_train_loader(data,
                            env_provider=None,
                            batch_size=32,

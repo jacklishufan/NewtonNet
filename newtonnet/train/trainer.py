@@ -209,11 +209,11 @@ class Trainer:
         for k in input:
             self.log_loss[k].append(input[k])
 
-        wandb.log(dict(
-            epoch=self.epoch,
-            steps=steps,
-            **input
-        ))
+        # wandb.log(dict(
+        #     epoch=self.epoch,
+        #     steps=steps,
+        #     **input
+        # ))
         df = pd.DataFrame(self.log_loss)
         df.applymap('{:.5f}'.format).to_csv(os.path.join(
             self.output_path, 'log.csv'),
@@ -570,10 +570,10 @@ class Trainer:
             if not self.verbose:
                 step_iterator = tqdm(step_iterator)
 
-            for s in step_iterator:
+            for s, train_batch in enumerate(train_generator):#step_iterator:
                 self.optimizer.zero_grad()
 
-                train_batch = next(train_generator)
+                #train_batch = next(train_generator)
                 # self.model.module(train_batch)
                 # preds = self.model.forward(train_batch)
                 preds = self.model(train_batch)
@@ -584,12 +584,12 @@ class Trainer:
                 if clip_grad>0:
                     torch.nn.utils.clip_grad_norm_(self.model.parameters(), clip_grad)
                 self.optimizer.step()
-                if (s %20 == 0 ):
-                    wandb.log(dict(
-                        epoch=self.epoch,
-                        mini_batch=s,
-                        loss_minibatch=loss.item(),
-                    ))
+                # if (s %20 == 0 ):
+                #     wandb.log(dict(
+                #         epoch=self.epoch,
+                #         mini_batch=s,
+                #         loss_minibatch=loss.item(),
+                #     ))
                 # if (s+1)%4==0 or s==steps-1:
                 #     self.optimizer.step()          # if in, comment out the one in the loop
                 #     self.optimizer.zero_grad()     # if in, comment out the one in the loop

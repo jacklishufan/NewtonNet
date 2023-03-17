@@ -64,7 +64,8 @@ class NewtonNet(nn.Module):
                  aggregration='sum',
                  attention_heads=1,
                  nonlinear_attention=False,
-                 three_body=False):
+                 three_body=False,
+                 newtonian_dynamics=True):
 
         super(NewtonNet, self).__init__()
 
