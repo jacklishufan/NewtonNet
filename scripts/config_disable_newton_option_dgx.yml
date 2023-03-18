@@ -10,7 +10,7 @@ data:
   # train_path: /Users/divyamgoel/Desktop/All/Projects/Newton_net_research/md17_toluene.npz
   root: /shared/jacklishufan/ani-1-cxx/
   test:  off   # path to the test data
-  test_size_per_molecule: 0.25
+  test_size_per_molecule: 0.001
   subtract_self_energy: on 
   cutoff: 5.0                 # cutoff radius
   train_size_proportion: 0.001             # training set size: to sample randomly
@@ -73,7 +73,7 @@ checkpoint:
   val: 1                      # evaluate the performance on the validation set every this many epochs
   test: 1                     # evaluate the performance on the test set every this many epochs
   model: 10000                  # save the model every this many epochs
-  verbose: True              # verbosity of the logging
+  verbose: False              # verbosity of the logging
 
 
 

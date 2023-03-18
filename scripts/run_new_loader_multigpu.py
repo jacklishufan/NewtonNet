@@ -32,6 +32,10 @@ parser.add_argument("--skip_eval", action='store_true',
                     help="Name of wandb entry")
 parser.add_argument("--p", default='ani_ccx',
                     help="parser")
+parser.add_argument("--print_freq", default=20,type=int,
+                    help="Log Printing Frequency")
+
+
 
 
 
@@ -241,7 +245,9 @@ def main(args):
                     checkpoint_test=settings['checkpoint']['test'],
                     checkpoint_model=settings['checkpoint']['model'],
                     verbose=settings['checkpoint']['verbose'],
-                    hooks=settings['hooks'])
+                    hooks=settings['hooks'],
+                    mode=train_mode,
+                    print_freq=args.print_freq)
 
     trainer.print_layers()
 
