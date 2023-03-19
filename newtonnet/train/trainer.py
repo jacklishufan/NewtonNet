@@ -40,13 +40,15 @@ class Trainer:
                  hooks=None,
                  mode="energy/force",
                  target_name=None,
-                 force_latent=False):
+                 force_latent=False,
+                 print_freq=20):
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
         self.requires_dr = requires_dr
         self.device = device
         self.energy_loss_w = energy_loss_w
+        self.print_freq = print_freq
         self.force_loss_w = force_loss_w
         self.wf_lambda = lambda epoch: np.exp(-epoch * loss_wf_decay)
 
@@ -128,24 +130,24 @@ class Trainer:
         while os.path.exists(out_path):
             path_iter+=1
             out_path = os.path.join(output_path[0],'training_%i'%path_iter)
-        os.makedirs(out_path)
+        os.makedirs(out_path,exist_ok=True)
         self.output_path = out_path
 
         self.val_out_path = os.path.join(self.output_path, 'validation')
-        os.makedirs(self.val_out_path)
+        os.makedirs(self.val_out_path,exist_ok=True)
 
         # subdir for computation graph
         self.graph_path = os.path.join(self.output_path, 'graph')
         if not os.path.exists(self.graph_path):
-            os.makedirs(self.graph_path)
+            os.makedirs(self.graph_path,exist_ok=True)
 
         # saved models
         self.model_path = os.path.join(self.output_path, 'models')
         if not os.path.exists(self.model_path):
-            os.makedirs(self.model_path)
+            os.makedirs(self.model_path,exist_ok=True)
 
         script_out = os.path.join(self.output_path, 'run_scripts')
-        os.makedirs(script_out)
+        os.makedirs(script_out,exist_ok=True)
         shutil.copyfile(yml_path, os.path.join(script_out,os.path.basename(yml_path)))
         shutil.copyfile(script_name, os.path.join(script_out,script_name))
 
@@ -237,7 +239,7 @@ class Trainer:
         for state in self.optimizer.state.values():
             for k, v in state.items():
                 if torch.is_tensor(v):
-                    state[k] = v.to(self.device[0])
+                    state[k] = v.to(self.device)
 
     def metric_se(self, preds, data):
         """
@@ -334,12 +336,10 @@ class Trainer:
         fi = []
         AM = []
         RM = []  # rotation angles/matrix
-        step_iter = range(steps)
-        if not self.verbose:
-            step_iter = tqdm(range(steps))
-        for val_step in step_iter:
-            val_batch = next(generator)
-
+        # if not self.verbose:
+        #     step_iter = tqdm(range(steps))
+        for val_step,val_batch in enumerate(generator):
+            s = val_step
             if self.hooks is not None and val_step == steps-1:
                 self.model.return_intermediate = True
                 val_preds = self.model(val_batch)
@@ -395,10 +395,14 @@ class Trainer:
             RM.append(val_batch["RM"].detach().cpu().numpy())
 
 
-            if self.verbose:
-                val_error_force_report = standardize_batch(list(chain(*val_error_force)))
-                AM_report = standardize_batch(list(chain(*AM)))
-                val_mae_force_report = np.mean(self.masked_average(val_error_force_report, AM_report))
+            if self.verbose or s % self.print_freq == 0:
+                if self.mode == 'energy/force':
+                    val_error_force_report = standardize_batch(list(chain(*val_error_force)))
+                    AM_report = standardize_batch(list(chain(*AM)))
+                    val_mae_force_report = np.mean(self.masked_average(val_error_force_report, AM_report))
+                else:
+                    AM_report = standardize_batch(list(chain(*AM)))
+                    val_mae_force_report = 0.0
 
                 print(
                     "%s: %i/%i - E_loss(MAE): %.5f - F_loss(MAE): %.5f"
@@ -481,7 +485,7 @@ class Trainer:
             RM.append(val_batch["RM"].detach().cpu().numpy())
 
 
-            if self.verbose:
+            if self.verbose or val_step % self.print_freq == 0:
 
                 print(
                     "%s: %i/%i - %s_RMSE: %.5f"
@@ -529,9 +533,6 @@ class Trainer:
 
 
         """
-        self.model.to(self.device[0])
-        if self.multi_gpu:
-            self.model = nn.DataParallel(self.model, device_ids=self.device)
         self._optimizer_to_device()
 
         running_val_loss = []
@@ -616,7 +617,7 @@ class Trainer:
                     
                 # n_atoms = train_batch.R.size()[1]
 
-                    if self.verbose:
+                    if self.verbose or s % self.print_freq == 0:
                         print(
                             "Train: Epoch %i/%i - %i/%i - loss: %.5f - running_loss(RMSE): %.5f - E(MAE): %.5f - F(MAE): %.5f"
                             % (self.epoch, epochs, s, steps, current_loss,
@@ -636,7 +637,7 @@ class Trainer:
 
                     n_data += train_batch["CS"].size()[0]
 
-                    if self.verbose:
+                    if self.verbose or s % self.print_freq == 0:
                         print(
                             "Train: Epoch %i/%i - %i/%i - loss: %.5f - running_loss(RMSE): %.5f - RMSE: %.5f"
                             % (self.epoch, epochs, s, steps, current_loss,

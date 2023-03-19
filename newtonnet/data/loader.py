@@ -82,7 +82,7 @@ class BatchDataset(Dataset):
         if self.RM is not None:
             output['RM'] = self.RM[index]
 
-
+        # OUTPUT SHOULD ALWAYS ON CPU, do not send to device here
         return output
 
     def __len__(self):
