@@ -52,10 +52,12 @@ class Trainer:
         self.force_loss_w = force_loss_w
         self.wf_lambda = lambda epoch: np.exp(-epoch * loss_wf_decay)
 
-        if type(device) is list and len(device) > 1:
-            self.multi_gpu = True
-        else:
-            self.multi_gpu = False
+        # if type(device) is list and len(device) > 1:
+        #     self.multi_gpu = True
+        # else:
+        #     self.multi_gpu = False
+
+        multi_gpu =True
 
         # outputs
         self._subdirs(yml_path, output_path, script_name)
