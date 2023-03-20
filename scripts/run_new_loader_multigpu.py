@@ -39,15 +39,9 @@ parser.add_argument("--resume_path", default=None,type=str,
                     help="Resume path")
 
 
-
-
-
-
 # from newtonnet.loader import BatchDataset
 # torch.autograd.set_detect_anomaly(True)
 def main(args):
-
-
     torch.set_default_tensor_type(torch.DoubleTensor)
 
     # settings
@@ -77,13 +71,15 @@ def main(args):
         train_mode = 'energy/force'
     elif args.p in ['ani']:
         train_mode = 'energy'
+        parsed_data = parse_new(settings, 'original', device, "ani", "ani") 
         print('data set:', 'ANI')
-    elif args.p in ['ani_ccx']:
+    elif args.train in ['ani_ccx']:
         train_mode = 'energy'
-        parsed_data = parse_new(settings,'original',device) 
+        parsed_data = parse_new(settings, 'original', device, "ani_ccx", "ani_ccx") 
         print('data set:', 'ANI_CCX')
     elif args.p in ['md17']:
         train_mode = 'energy'
+        parsed_data = parse_new(settings, 'original', device, "ani_ccx", "md17") 
         print('data set:', 'MD17 for Test and Ani-cxx for Train')
     elif args.p in ['methane']:
         train_mode = 'energy/force'

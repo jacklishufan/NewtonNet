@@ -15,7 +15,7 @@ from ase.io import iread
 import math
 import pickle
 
-def parse_new(settings, data_keys, device):
+def parse_new(settings, data_keys, device, train_data_name, test_data_name):
     """
     parse and load the ANI-1-CCX dataset with splitting of train, validation and test
     dataset is expected to be in original .h5 format
@@ -38,7 +38,15 @@ def parse_new(settings, data_keys, device):
     print("NEW PARSE FUNCTION")
     # atomic_Z_map = {'C': 6, 'H': 1, 'O': 8, 'N': 7}
     # atomic_self_energy = {'H': -0.60467592, 'C': -38.06846167, 'N': -54.70613008, 'O': -75.1796043 } # calculated from dataset
-    atomic_self_energy = {1: -0.499946, 6: -37.786540, 7: -54.524824, 8: -74.993565 } # provided by Jiashu
+
+    if train_data_name == 'ani_ccx':
+        atomic_self_energy = {1: -0.499946, 6: -37.786540, 7: -54.524824, 8: -74.993565 } # provided by Jiashu
+        atomic_self_energy_md17 = {1: -0.4986286936, 6: -37.7512363777, 7: -54.4665781763, 8: -74.9146696437 } # provided by Jiashu
+    elif train_data_name == 'ani':
+        atomic_Z_map = {'C': 6, 'H': 1, 'O': 8, 'N': 7}
+        atomic_self_energy = {'H': -0.500607632585, 'C': -37.8302333826, 'N': -54.5680045287, 'O': -75.0362229210 } # provided by ANI authors
+    
+
     # meta data
     root = settings['data']['root']
     train_data = settings['data']['train']
@@ -58,50 +66,15 @@ def parse_new(settings, data_keys, device):
 
     #test with ccsd(t)_cbs.energy
 
-    ani_data = DataLoaderAniccx(root + "/ani1x-release.h5", data_keys)
-    energy_type = ani_data.get_energy_type()
-    force_type = ani_data.get_force_type()
-    print("Going through this file of Ani CXX Data: ", ani_data)
+    if train_data_name == 'ani_ccx':
 
-    for molecule in ani_data:
-        # prepare self energy of the current molecule for subtraction from total energy
-        if settings['data']['subtract_self_energy']:
-            self_energy = np.sum([atomic_self_energy[a] for a in molecule['atomic_numbers']])
-            molecule[energy_type] -= self_energy
-        if settings['data'].get('convert_unit', True):
-            # convert Hartree units to kCal/mol
-            molecule[energy_type] *= 627.2396
-        n_conf, n_atoms, _ = molecule['coordinates'].shape
-        conf_indices = np.arange(n_conf)
-
-        test_size = math.ceil(test_size_per_molecule * n_conf)
-        if test_data is False and test_size > 1: 
-            train_idx, test_idx = train_test_split(conf_indices, 
-                test_size=test_size, 
-                random_state=settings['data']['train_test_split_random_state'])
-        else:
-            train_idx = conf_indices
-        n_conf_train = len(train_idx)
-        dtrain['R'].extend(molecule['coordinates'][train_idx])
-        dtrain['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf_train, 1)))
-        dtrain['N'].extend([n_atoms] * n_conf_train)
-        dtrain['NA'].extend([n_atoms] * n_conf_train)
-        dtrain['E'].extend(molecule[energy_type][train_idx])
-        dtrain['F'].extend(molecule[force_type][train_idx])
-        if test_data is False and test_size > 1:
-            n_conf_test = len(test_idx) 
-            dtest['R'].extend(molecule['coordinates'][test_idx])
-            dtest['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf_test, 1)))
-            dtest['N'].extend([n_atoms] * n_conf_test)
-            dtest['NA'].extend([n_atoms] * n_conf_test)
-            dtest['E'].extend(molecule[energy_type][test_idx])
-            
-    if test_data:
-        ani_data = DataLoaderAniccx(root + "/ani1x-release.h5")
-        print("Going through this file of Ani-CCX Data (Test Data): ", ani_data)
+        ani_data = DataLoaderAniccx(root + "/ani1x-release.h5", data_keys)
+        energy_type = ani_data.get_energy_type()
+        force_type = ani_data.get_force_type()
+        print("Going through this file of Ani CXX Data: ", ani_data)
 
         for molecule in ani_data:
-                # prepare self energy of the current molecule for subtraction from total energy
+            # prepare self energy of the current molecule for subtraction from total energy
             if settings['data']['subtract_self_energy']:
                 self_energy = np.sum([atomic_self_energy[a] for a in molecule['atomic_numbers']])
                 molecule[energy_type] -= self_energy
@@ -109,11 +82,148 @@ def parse_new(settings, data_keys, device):
                 # convert Hartree units to kCal/mol
                 molecule[energy_type] *= 627.2396
             n_conf, n_atoms, _ = molecule['coordinates'].shape
-            dtest['R'].extend(molecule['coordinates'])
-            dtest['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf, 1)))
-            dtest['N'].extend([n_atoms] * n_conf)
-            dtest['NA'].extend([n_atoms] * n_conf)
-            dtest['E'].extend(molecule[energy_type])
+            conf_indices = np.arange(n_conf)
+
+            test_size = math.ceil(test_size_per_molecule * n_conf)
+            if test_data is False and test_size > 1: 
+                train_idx, test_idx = train_test_split(conf_indices, 
+                    test_size=test_size, 
+                    random_state=settings['data']['train_test_split_random_state'])
+            else:
+                train_idx = conf_indices
+            n_conf_train = len(train_idx)
+            dtrain['R'].extend(molecule['coordinates'][train_idx])
+            dtrain['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf_train, 1)))
+            dtrain['N'].extend([n_atoms] * n_conf_train)
+            if train_data_name != 'MD17':
+                dtrain['NA'].extend([n_atoms] * n_conf_train)
+            dtrain['E'].extend(molecule[energy_type][train_idx])
+            dtrain['F'].extend(molecule[force_type][train_idx])
+            if test_data is False and test_size > 1:
+                n_conf_test = len(test_idx) 
+                dtest['R'].extend(molecule['coordinates'][test_idx])
+                dtest['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf_test, 1)))
+                dtest['N'].extend([n_atoms] * n_conf_test)
+                dtest['NA'].extend([n_atoms] * n_conf_test)
+                dtest['E'].extend(molecule[energy_type][test_idx])
+        # Using MD-17 as test set for Ani-1 CCX
+        if test_data_name == 'md17':
+            md17_data = settings['data']['test_path']
+            test_method = settings['data']['test_method']
+            molecule_dict_all = ['rmd17_aspirin', 'rmd17_azobenzene', 'rmd17_benzene', 'rmd17_ethanol', 
+                'rmd17_malonaldehyde', 'rmd17_naphthalene', 'rmd17_paracetamol', 'rmd17_salicylic',
+                'rmd17_toluene', 'rmd17_uracil']
+            molecule_dict_in = ['rmd17_benzene', 'rmd17_ethanol', 'rmd17_malonaldehyde', 'rmd17_toluene', 'rmd17_uracil']
+            molecule_dict_out = ['rmd17_aspirin', 'rmd17_azobenzene', 'rmd17_naphthalene', 'rmd17_paracetamol', 'rmd17_salicylic']
+
+            if test_method == "in":
+                molecule_dict_in_use = molecule_dict_in
+            elif test_method == "out":
+                molecule_dict_in_use = molecule_dict_out
+            molecule_dict_in_use = molecule_dict_all
+
+            print("Going through this file of MD17 Data for Test: ", md17_data)
+
+            for filename in os.listdir(md17_data):
+                if filename.split('.')[0] not in molecule_dict_in_use:
+                    continue
+                print("current file being processed: ", filename)
+
+                file_path = os.path.join(md17_data, filename)
+                raw_file = np.load(file_path)
+                molecule = dict()
+                lst = raw_file.files
+                for item in lst:
+                    molecule[item] = raw_file[item]
+                
+                #subtract energy (in Kcal)
+                if settings['data']['subtract_self_energy']:
+                    self_energy = np.sum([atomic_self_energy_md17[a] for a in molecule['nuclear_charges']])
+                    molecule['energies'] -= self_energy * 627.2396
+
+                n_conf, n_atoms, _ = molecule['coords'].shape
+                conf_indices = np.arange(n_conf)
+
+                _, test_idx = train_test_split(conf_indices, 
+                    test_size=1000, 
+                    random_state=settings['data']['train_test_split_random_state'])
+
+                n_conf_test = len(test_idx) 
+                dtest['R'].extend(molecule['coords'][test_idx])
+                dtest['Z'].extend(np.tile([a for a in molecule['nuclear_charges']], (n_conf_test, 1)))
+                dtest['N'].extend([n_atoms] * n_conf_test)
+                #dtest['NA'].extend([n_atoms] * n_conf_test)
+                dtest['E'].extend(molecule['energies'][test_idx])
+                
+        elif test_data:
+            ani_data = DataLoaderAniccx(root + "/ani1x-release.h5")
+            print("Going through this file of Ani-CCX Data (Test Data): ", ani_data)
+
+            for molecule in ani_data:
+                    # prepare self energy of the current molecule for subtraction from total energy
+                if settings['data']['subtract_self_energy']:
+                    self_energy = np.sum([atomic_self_energy[a] for a in molecule['atomic_numbers']])
+                    molecule[energy_type] -= self_energy
+                if settings['data'].get('convert_unit', True):
+                    # convert Hartree units to kCal/mol
+                    molecule[energy_type] *= 627.2396
+                n_conf, n_atoms, _ = molecule['coordinates'].shape
+                dtest['R'].extend(molecule['coordinates'])
+                dtest['Z'].extend(np.tile([a for a in molecule['atomic_numbers']], (n_conf, 1)))
+                dtest['N'].extend([n_atoms] * n_conf)
+                dtest['NA'].extend([n_atoms] * n_conf)
+                dtest['E'].extend(molecule[energy_type])
+    # Using ANI-1 as training data
+    elif train_data_name == 'ani':
+        for train_data_num in train_data:
+            ani_data = anidataloader(root + "/ani_gdb_s0%d.h5" % train_data_num)
+            print("Going through this file of Ani Data: ", ani_data)
+            for molecule in ani_data:
+                #print("molecule species: ", molecule['species'])
+                # prepare self energy of the current molecule for subtraction from total energy
+                if settings['data']['subtract_self_energy']:
+                    self_energy = np.sum([atomic_self_energy[a] for a in molecule['species']])
+                    molecule['energies'] -= self_energy
+                if settings['data'].get('convert_unit', True):
+                    # convert Hartree units to kCal/mol
+                    molecule['energies'] *= 627.2396
+                n_conf, n_atoms, _ = molecule['coordinates'].shape
+                conf_indices = np.arange(n_conf)
+                # If no test data specified, for each molecule split conformations into train and test
+                if test_data is False:
+                    train_idx, test_idx = train_test_split(conf_indices, 
+                        test_size=math.ceil(test_size_per_molecule * n_conf), 
+                        random_state=settings['data']['train_test_split_random_state'])
+                else:
+                    train_idx = conf_indices
+                n_conf_train = len(train_idx)
+                dtrain['R'].extend(molecule['coordinates'][train_idx])
+                dtrain['Z'].extend(np.tile([atomic_Z_map[a] for a in molecule['species']], (n_conf_train, 1)))
+                dtrain['N'].extend([n_atoms] * n_conf_train)
+                dtrain['E'].extend(molecule['energies'][train_idx])
+                if test_data is False:
+                    n_conf_test = len(test_idx)
+                    dtest['R'].extend(molecule['coordinates'][test_idx])
+                    dtest['Z'].extend(np.tile([atomic_Z_map[a] for a in molecule['species']], (n_conf_test, 1)))
+                    dtest['N'].extend([n_atoms] * n_conf_test)
+                    dtest['E'].extend(molecule['energies'][test_idx])
+                
+        if test_data:
+            for test_data_num in test_data:
+                ani_data = anidataloader(root + "/ani_gdb_s0%d.h5" % test_data_num)
+                for molecule in ani_data:
+                    # prepare self energy of the current molecule for subtraction from total energy
+                    if settings['data']['subtract_self_energy']:
+                        self_energy = np.sum([atomic_self_energy[a] for a in molecule['species']])
+                        molecule['energies'] -= self_energy
+                    if settings['data'].get('convert_unit', True):
+                        # convert Hartree units to kCal/mol
+                        molecule['energies'] *= 627.2396
+                    n_conf, n_atoms, _ = molecule['coordinates'].shape
+                    dtest['R'].extend(molecule['coordinates'])
+                    dtest['Z'].extend(np.tile([atomic_Z_map[a] for a in molecule['species']], (n_conf, 1)))
+                    dtest['N'].extend([n_atoms] * n_conf)
+                    dtest['E'].extend(molecule['energies'])
 
     # Pad irregular-shaped arrays to make all arrays regular in size
     # for k in ['R', 'Z', 'N', 'E']:
