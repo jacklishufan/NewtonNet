@@ -751,6 +751,21 @@ class Trainer:
 
             # checkpoint
             if self.epoch % self.check_log == 0:
+                
+                if self.multi_gpu:
+                    save_model = self.model.module
+                else:
+                    save_model = self.model
+                torch.save(save_model,#.state_dict(),
+                           os.path.join(self.model_path, 'last_model.pt'))
+                torch.save({
+                            'epoch': self.epoch,
+                            'model_state_dict': save_model.state_dict(),
+                            'optimizer_state_dict': self.optimizer.state_dict(),
+                            'loss': loss
+                            },
+                    os.path.join(self.model_path, 'last_model_state.tar')
+                )
 
                 for i, param_group in enumerate(
                         self.scheduler.optimizer.param_groups):
