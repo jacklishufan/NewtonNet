@@ -35,6 +35,10 @@ parser.add_argument("--p", default='ani_ccx',
 parser.add_argument("--print_freq", default=20,type=int,
                     help="Log Printing Frequency")
 
+parser.add_argument("--resume_path", default=None,type=str,
+                    help="Resume path")
+
+
 
 
 
@@ -248,6 +252,9 @@ def main(args):
                     hooks=settings['hooks'],
                     mode=train_mode,
                     print_freq=args.print_freq)
+    
+    if args.resume_path:
+        trainer.resume_model(args.resume_path)
 
     trainer.print_layers()
 

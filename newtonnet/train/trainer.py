@@ -321,6 +321,7 @@ class Trainer:
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epoch = checkpoint['epoch']
         loss = checkpoint['loss']
+        self.model.to(self.device)
         return loss
 
     def validation(self, name, generator, steps):
@@ -685,12 +686,22 @@ class Trainer:
             irc_mae_E = 0; irc_mae_F = 0
             test_mae_E = 0; test_mae_F = 0
             test_error = 0
+
+            torch.save({
+                            'epoch': self.epoch,
+                            'model_state_dict': save_model.state_dict(),
+                            'optimizer_state_dict': self.optimizer.state_dict(),
+                            'loss': loss
+                            },
+                    os.path.join(self.model_path, 'model_state_latest.tar')
+                )
             if self.best_val_loss > val_error:
                 self.best_val_loss = val_error
-                if self.multi_gpu:
-                    save_model = self.model.module
-                else:
-                    save_model = self.model
+                save_model = self.model #Force  Overwrite
+                # if self.multi_gpu:
+                #     save_model = self.model.module
+                # else:
+                #     save_model = self.model
                 torch.save(save_model,#.state_dict(),
                            os.path.join(self.model_path, 'best_model.pt'))
                 torch.save({
