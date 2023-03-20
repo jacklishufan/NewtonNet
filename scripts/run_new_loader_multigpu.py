@@ -59,8 +59,6 @@ def main(args):
     dist.init_process_group(backend="nccl", world_size=world_size, rank=rank)
     device = torch.device(f'cuda:{local_rank}')
     torch.cuda.set_device(device)
-
-
   
     print("RUN DEVICE", device)
     # data
