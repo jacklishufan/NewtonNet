@@ -71,7 +71,7 @@ def main(args):
         train_mode = 'energy'
         parsed_data = parse_new(settings, 'original', device, "ani", "ani") 
         print('data set:', 'ANI')
-    elif args.train in ['ani_ccx']:
+    elif args.p in ['ani_ccx']:
         train_mode = 'energy'
         parsed_data = parse_new(settings, 'original', device, "ani_ccx", "ani_ccx") 
         print('data set:', 'ANI_CCX')
